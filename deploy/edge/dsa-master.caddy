@@ -1,0 +1,17 @@
+# DSA Master site for the server's shared edge proxy (Caddy).
+# Install once:  cp deploy/edge/dsa-master.caddy ~/edge/sites/ && ~/edge/reload.sh
+dsamaster.duckdns.org {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Fingerprinted build assets never change.
+	header /assets/* Cache-Control "public, max-age=31536000, immutable"
+
+	reverse_proxy dsa-master:8080
+}

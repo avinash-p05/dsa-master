@@ -12,7 +12,7 @@ A concept-first roadmap of 180 curated LeetCode problems for mid-level interview
 | Frontend | React 18, TypeScript, Vite, React Router |
 | Backend | Spring Boot 4 (Java 17+), Spring Security (OAuth2 + email/password), Spring Mail (SMTP), Spring Data JPA, Flyway, Spring Session JDBC |
 | Database | PostgreSQL 17 |
-| Deploy | One jar (SPA at `/`, API at `/api`) in Docker, behind Caddy for HTTPS |
+| Deploy | One jar (SPA at `/`, API at `/api`) in Docker, behind a shared edge Caddy proxy for HTTPS |
 
 ## Repository layout
 
@@ -31,8 +31,8 @@ backend/               Spring Boot app
   src/main/resources/
     db/migration/        Flyway SQL migrations
     application*.yml     Shared / dev / prod config
-deploy/                Caddyfile and DEPLOY.md (VPS guide)
-compose.yaml           Production stack (Caddy + app + Postgres)
+deploy/                edge/dsa-master.caddy (site file for the edge proxy) and DEPLOY.md
+compose.yaml           Production stack (app + Postgres, joins the server's "edge" network)
 compose.dev.yaml       Local Postgres for development
 Dockerfile             Multi-stage build → small JRE image
 ```

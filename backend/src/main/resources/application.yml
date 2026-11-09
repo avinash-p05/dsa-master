@@ -53,6 +53,11 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    # Don't report the whole app DOWN when SMTP is unset or briefly unreachable;
+    # mail failures are logged by MailService instead.
+    mail:
+      enabled: false
 
 app:
   # Public URL of the site, used in links inside emails.

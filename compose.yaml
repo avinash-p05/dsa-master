@@ -1,17 +1,16 @@
-# Production stack for a single VPS (e.g. Contabo):
-#   app    -> Spring Boot jar serving the SPA at "/" and the API at "/api",
-#             published on 127.0.0.1:${APP_PORT:-8080} only
-#   db     -> PostgreSQL 17 (not exposed to the internet)
-#   caddy  -> OPTIONAL HTTPS proxy on 80/443 (automatic Let's Encrypt)
+# DSA Master: a self-contained app module for a server that runs a shared
+# "edge" reverse proxy (one Caddy owning ports 80/443 for every app).
 #
-#   cp .env.example .env   # fill it in
+#   app -> Spring Boot jar (SPA at "/", API at "/api"), reachable ONLY on the
+#          shared Docker network "edge" as  dsa-master:8080  (no host ports)
+#   db  -> PostgreSQL 17, private to this stack
 #
-#   Server already runs a web server on 80/443 (Nginx, Apache, another Caddy)?
-#     docker compose up -d --build                 # app + db only
-#     then proxy your domain to 127.0.0.1:APP_PORT (see deploy/nginx-dsamaster.conf)
-#
-#   Fresh server with nothing on 80/443?
-#     docker compose --profile caddy up -d --build # app + db + Caddy HTTPS
+# One-time server setup: the edge proxy and its network (see deploy/DEPLOY.md).
+# Deploy / update this app without touching anything else:
+#   cp .env.example .env              # first time only
+#   docker compose up -d --build
+# Then register the site with the edge proxy (first time only):
+#   cp deploy/edge/dsa-master.caddy ~/edge/sites/ && ~/edge/reload.sh
 services:
   db:
     image: postgres:17.10-alpine
@@ -27,6 +26,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks:
+      - default
 
   app:
     build: .
@@ -46,36 +47,23 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       PASSWORD_LOGIN_ENABLED: ${PASSWORD_LOGIN_ENABLED:-false}
       # Links inside emails point here.
-      APP_BASE_URL: https://${DOMAIN}
+      APP_BASE_URL: https://${DOMAIN:?Set DOMAIN in .env}
       # Outgoing email (verification + password reset) over any SMTP provider.
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
-    # Loopback only: reachable from the reverse proxy on this server, not the internet.
-    # Change APP_PORT in .env if 8080 is already in use.
-    ports:
-      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    networks:
+      default: {}
+      edge:
+        # The name the edge proxy uses: reverse_proxy dsa-master:8080
+        aliases: [dsa-master]
 
-  caddy:
-    image: caddy:2.8-alpine
-    profiles: ["caddy"] # only started with --profile caddy
-    restart: unless-stopped
-    depends_on:
-      - app
-    environment:
-      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+networks:
+  # Created once per server: docker network create edge
+  edge:
+    external: true
 
 volumes:
   db-data:
-  caddy-data:
-  caddy-config:

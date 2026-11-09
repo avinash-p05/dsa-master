@@ -1,154 +1,168 @@
-# Deploying to a VPS (Contabo)
+# Deploying DSA Master
 
 > **Release 1.0.1 (`release/1.0.1-github-login`)** ships with **GitHub sign-in only**.
-> For this release you only need steps 1, 2, the GitHub part of 3, then 4 and 5.
-> Google and email/password are already built, and switched off until their credentials are added.
+> Google and email/password are built in, and stay off until their credentials are added.
 
-The stack runs on one server with Docker Compose:
+## How the server is organised
+
+One server, many apps, no shared config files between apps:
 
 ```
-Internet ──► Caddy :443 (HTTPS, auto certificates)
-               └──► app :8080  (Spring Boot: SPA at "/", API at "/api")
-                       └──► db :5432 (PostgreSQL 17, private)
+Internet :80/:443
+    │
+    ▼
+~/edge   (edge-caddy)            ← the ONLY thing bound to 80/443; automatic HTTPS
+  Caddyfile:  import sites/*.caddy
+  sites/
+    fincore.caddy      → reverse_proxy fincore-frontend:80
+    dsa-master.caddy   → reverse_proxy dsa-master:8080
+    <next-app>.caddy   → …
+    │   (shared Docker network "edge")
+    ▼
+~/fin-core     its own compose project, own DB, joins "edge" as fincore-frontend
+~/dsa-master   its own compose project, own DB, joins "edge" as dsa-master
 ```
 
-## 1. Before you start
+- Apps **publish no host ports**, so they never clash. The edge proxy reaches each one by its alias on the `edge` network.
+- Adding or updating one app never restarts another. A new site goes live with a **graceful reload** of the proxy, with no downtime for existing sites.
 
-- **A domain** (or a subdomain) with an **A record pointing to the server's IP**.
-  Google OAuth doesn't accept bare IP addresses as redirect URIs, and HTTPS needs a domain.
-- Ports **80** and **443** open in the server firewall.
-- The server needs about 2 GB of free RAM to build the image (Maven + Node). If it's short on memory, build on your PC and copy the image across (see step 6).
+## First deploy of DSA Master
 
-## 2. Install Docker on the server (Ubuntu/Debian)
+Prerequisites: the edge proxy is running (see "Edge proxy" below), and `dsamaster.duckdns.org` points at the server.
+
+**1. Create the GitHub OAuth app** at <https://github.com/settings/developers> → *New OAuth App*
+- Homepage URL: `https://dsamaster.duckdns.org`
+- Authorization callback URL: `https://dsamaster.duckdns.org/login/oauth2/code/github`
+
+**2. Clone and configure**
 
 ```bash
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER   # log out and back in afterwards
+git clone -b release/1.0.1-github-login https://github.com/avinash-p05/dsa-master.git ~/dsa-master
+cd ~/dsa-master
+cp .env.example .env && chmod 600 .env
+nano .env        # DOMAIN, DB_PASSWORD (openssl rand -base64 32), GITHUB_CLIENT_ID/SECRET
 ```
 
-## 3. Create the OAuth apps
-
-**GitHub** → <https://github.com/settings/developers> → *New OAuth App*
-- Homepage URL: `https://YOUR_DOMAIN`
-- Authorization callback URL: `https://YOUR_DOMAIN/login/oauth2/code/github`
-
-**Google** → <https://console.cloud.google.com/apis/credentials> → *Create credentials → OAuth client ID → Web application*
-- Authorised JavaScript origins: `https://YOUR_DOMAIN`
-- Authorised redirect URIs: `https://YOUR_DOMAIN/login/oauth2/code/google`
-- Set up the OAuth consent screen (app name, support email, and the `email`/`profile` scopes). Publish it so anyone can sign in.
-
-You can deploy with only one provider. The UI shows a button for each provider that has credentials.
-
-## 3b. Email (email/password sign-up) — optional, off in 1.0.1
-
-Set `PASSWORD_LOGIN_ENABLED=true` to turn this on. Email/password accounts need outgoing mail for the verification and password-reset links. The app sends mail itself over **SMTP**, so any provider works. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` and `MAIL_FROM` in `.env`:
-
-| Provider | Host / port | Notes |
-| --- | --- | --- |
-| Gmail | `smtp.gmail.com` / 587 | Turn on 2-Step Verification, then create an **App Password** (Google Account → Security → App passwords). About 500 emails a day. |
-| Brevo | `smtp-relay.brevo.com` / 587 | Free tier: 300 emails a day. Verify your sender address first. |
-| Zoho, Outlook, SES… | see the provider's docs | Any STARTTLS SMTP server on 587 works. |
-
-`MAIL_FROM` must be an address the SMTP account is allowed to send as (for Gmail, your Gmail address).
-If `SMTP_HOST` is empty, emails are written to the app log instead of being sent: fine for testing, not for real users.
-
-## 4. Get the code and configure it
-
-```bash
-git clone -b release/1.0.1-github-login https://github.com/avinash-p05/dsa-master.git
-cd dsa-master
-cp .env.example .env
-nano .env        # set DOMAIN, DB_PASSWORD (openssl rand -base64 32), GITHUB_CLIENT_ID/SECRET
-chmod 600 .env
-```
-
-## 5. Start everything
-
-First check whether something already serves websites on this server:
-
-```bash
-sudo ss -tlnp | grep -E ':(80|443|8080)\s'
-```
-
-### A. Ports 80/443 are already in use (another site on Nginx, Apache…)
-
-Run only the app and the database. The app is published on `127.0.0.1:8080`; set `APP_PORT=8081` (or similar) in `.env` if 8080 is taken.
+**3. Start the app**
 
 ```bash
 docker compose up -d --build
-docker compose logs -f app      # wait for "Started DsaMasterApplication"
-curl -s localhost:8080/actuator/health
+docker compose ps                     # app should become "healthy"
 ```
 
-Then point your existing web server at it.
-
-**Nginx** (see `deploy/nginx-dsamaster.conf`):
+**4. Register the site with the edge proxy** (first time only)
 
 ```bash
-sudo cp deploy/nginx-dsamaster.conf /etc/nginx/sites-available/dsamaster
-sudo ln -s /etc/nginx/sites-available/dsamaster /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d dsamaster.duckdns.org
+cp deploy/edge/dsa-master.caddy ~/edge/sites/
+~/edge/reload.sh
 ```
 
-**Caddy already on the host:** add this to its Caddyfile and reload:
+Caddy fetches the HTTPS certificate on the first request to `https://dsamaster.duckdns.org`.
 
-```
-dsamaster.duckdns.org {
-    reverse_proxy 127.0.0.1:8080
-}
-```
-
-**Traefik / nginx-proxy in Docker:** put the `app` service on that proxy's network and add its labels or `VIRTUAL_HOST` env (container port 8080).
-
-### B. Fresh server, nothing on 80/443
+## Updating
 
 ```bash
-docker compose --profile caddy up -d --build
+cd ~/dsa-master && git pull && docker compose up -d --build
 ```
 
-The bundled Caddy gets the HTTPS certificate on the first request.
+Only this app's container is recreated. Flyway applies any new database migrations at startup.
 
-Either way, open `https://YOUR_DOMAIN`. Database migrations (Flyway) run automatically at startup.
+## Turning on more sign-in methods later
 
-## 6. Updating
-
-```bash
-git pull
-docker compose up -d --build app
-```
-
-**Low-memory server?** Build on your PC instead and send only the image:
-
-```bash
-docker build -t dsa-master:latest .
-docker save dsa-master:latest | gzip | ssh user@SERVER 'gunzip | docker load'
-ssh user@SERVER 'cd dsa-master && docker compose up -d --no-build app'
-```
+Set these in `.env`, then run `docker compose up -d`:
+- **Google:** `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (redirect URI `https://<DOMAIN>/login/oauth2/code/google`).
+- **Email/password:** `PASSWORD_LOGIN_ENABLED=true` plus SMTP. For Gmail: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, your Gmail address as `SMTP_USERNAME`, a 16-character **App Password** as `SMTP_PASSWORD`, and `MAIL_FROM` set to the same address.
 
 ## Operations
 
 | Task | Command |
 | --- | --- |
-| App logs | `docker compose logs -f app` |
-| Health | `curl -s localhost:8080/actuator/health` |
-| Restart app | `docker compose restart app` |
+| Status | `docker compose ps` |
+| Logs | `docker compose logs -f app` |
+| Health | `docker compose exec app wget -qO- localhost:8080/actuator/health` |
+| Restart | `docker compose restart app` |
 | DB shell | `docker compose exec db psql -U dsamaster dsamaster` |
-| Backup DB | `docker compose exec -T db pg_dump -U dsamaster dsamaster \| gzip > backup-$(date +%F).sql.gz` |
+| Backup DB | `docker compose exec -T db pg_dump -U dsamaster dsamaster \| gzip > ~/backups/dsa-master-$(date +%F).sql.gz` |
 | Restore DB | `gunzip -c backup.sql.gz \| docker compose exec -T db psql -U dsamaster dsamaster` |
 
-Set up a daily cron job for the backup command and copy the files off the server.
+---
 
-## Running the jar without Docker (alternative)
+## Edge proxy (server-level, set up once)
 
-```bash
-# On your PC
-cd backend && ./mvnw -DskipTests package       # -> target/dsa-master.jar
+It lives in `~/edge` on the server, separate from every app:
 
-# On the server (Java 17+ and PostgreSQL installed)
-SPRING_PROFILES_ACTIVE=prod DB_URL=jdbc:postgresql://localhost:5432/dsamaster \
-DB_USERNAME=dsamaster DB_PASSWORD=... GITHUB_CLIENT_ID=... GITHUB_CLIENT_SECRET=... \
-java -jar dsa-master.jar
+```
+~/edge/
+  compose.yaml       # Caddy on 80/443, joins the "edge" network
+  Caddyfile          # global options + "import sites/*.caddy"
+  sites/             # one file per app/domain
+  reload.sh          # validate config, then reload gracefully
 ```
 
-Put it behind Caddy or Nginx for HTTPS, and run it with systemd so it restarts on reboot.
+**compose.yaml**
+
+```yaml
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: edge-caddy
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+networks:
+  edge: { external: true }
+volumes:
+  caddy-data:
+  caddy-config:
+```
+
+**Caddyfile**
+
+```
+import sites/*.caddy
+```
+
+**reload.sh**
+
+```bash
+#!/bin/sh
+set -e
+docker exec edge-caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker exec edge-caddy caddy reload   --config /etc/caddy/Caddyfile --adapter caddyfile
+echo "edge proxy reloaded"
+```
+
+Bootstrap:
+
+```bash
+docker network create edge
+cd ~/edge && docker compose up -d
+```
+
+## Adding another app to the server
+
+1. Give the app its own compose project with **no `ports:`**, and put its web-facing service on the external `edge` network with a unique alias:
+   ```yaml
+   services:
+     web:
+       networks:
+         default: {}
+         edge: { aliases: [my-app] }
+   networks:
+     edge: { external: true }
+   ```
+2. Point the domain's DNS at the server.
+3. Add `~/edge/sites/my-app.caddy`:
+   ```
+   my-app.example.com {
+       reverse_proxy my-app:3000
+   }
+   ```
+4. Run `docker compose up -d` in the app folder, then `~/edge/reload.sh`.
+
+Nothing else on the server is touched.
