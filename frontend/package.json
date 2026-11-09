@@ -1,7 +1,7 @@
 {
   "name": "dsa-master",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Concept-first roadmap of 180 curated LeetCode problems with browser-side progress tracking.",
   "type": "module",
   "scripts": {

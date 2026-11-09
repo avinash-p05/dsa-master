@@ -1,5 +1,5 @@
 # Production: PostgreSQL. All secrets come from environment variables
-# (see deploy/dsa-master.env.example).
+# (see .env.example).
 spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/dsamaster}
@@ -16,6 +16,10 @@ server:
 
 app:
   dev-login-enabled: false
+  auth:
+    # Release 1.0.1 ships GitHub sign-in only. Email/password (with SMTP
+    # verification) is built in; set PASSWORD_LOGIN_ENABLED=true once SMTP is configured.
+    password-login-enabled: ${PASSWORD_LOGIN_ENABLED:false}
 
 logging:
   level:

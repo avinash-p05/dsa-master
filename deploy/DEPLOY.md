@@ -1,5 +1,9 @@
 # Deploying to a VPS (Contabo)
 
+> **Release 1.0.1 (`release/1.0.1-github-login`)** ships with **GitHub sign-in only**.
+> For this release you only need steps 1, 2, the GitHub part of 3, then 4 and 5.
+> Google and email/password are already built, and switched off until their credentials are added.
+
 The stack runs on one server with Docker Compose:
 
 ```
@@ -35,9 +39,9 @@ sudo usermod -aG docker $USER   # log out and back in afterwards
 
 You can deploy with only one provider. The UI shows a button for each provider that has credentials.
 
-## 3b. Email (email/password sign-up)
+## 3b. Email (email/password sign-up) — optional, off in 1.0.1
 
-Email/password accounts need outgoing mail for the verification and password-reset links. The app sends mail itself over **SMTP**, so any provider works. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` and `MAIL_FROM` in `.env`:
+Set `PASSWORD_LOGIN_ENABLED=true` to turn this on. Email/password accounts need outgoing mail for the verification and password-reset links. The app sends mail itself over **SMTP**, so any provider works. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` and `MAIL_FROM` in `.env`:
 
 | Provider | Host / port | Notes |
 | --- | --- | --- |
@@ -51,10 +55,10 @@ If `SMTP_HOST` is empty, emails are written to the app log instead of being sent
 ## 4. Get the code and configure it
 
 ```bash
-git clone https://github.com/avinash-p05/dsa-master.git
+git clone -b release/1.0.1-github-login https://github.com/avinash-p05/dsa-master.git
 cd dsa-master
 cp .env.example .env
-nano .env        # set DOMAIN, DB_PASSWORD (openssl rand -base64 32), OAuth IDs/secrets and SMTP
+nano .env        # set DOMAIN, DB_PASSWORD (openssl rand -base64 32), GITHUB_CLIENT_ID/SECRET
 chmod 600 .env
 ```
 

@@ -37,6 +37,7 @@ services:
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      PASSWORD_LOGIN_ENABLED: ${PASSWORD_LOGIN_ENABLED:-false}
       # Links inside emails point here.
       APP_BASE_URL: https://${DOMAIN}
       # Outgoing email (verification + password reset) over any SMTP provider.

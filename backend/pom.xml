@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.dsamaster</groupId>
 	<artifactId>dsa-master</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0.1</version>
 	<name>dsa-master</name>
 	<description>DSA Master API and web app</description>
 
