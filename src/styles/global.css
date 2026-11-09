@@ -122,7 +122,7 @@ main.container { padding-top: 28px; padding-bottom: 40px; outline: none; }
 }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.icon-btn svg circle[r="1.5"] { fill: currentColor; }
+.icon-btn svg .fill { fill: currentColor; }
 .i-moon { display: none; }
 :root[data-theme="dark"] .i-sun { display: none; }
 :root[data-theme="dark"] .i-moon { display: block; }
@@ -244,7 +244,10 @@ main.container { padding-top: 28px; padding-bottom: 40px; outline: none; }
 .topic-progress .row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
 
 .learn { padding: 22px 24px; margin-bottom: 20px; }
-.learn-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.learn-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; user-select: none;
+  width: 100%; background: none; border: 0; padding: 0; text-align: left;
+}
 .learn-head h2 { font-size: 18px; }
 .chev { width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 2; transition: transform 0.2s ease; }
 .learn.collapsed .chev { transform: rotate(-90deg); }
@@ -344,6 +347,8 @@ table.sched tr:last-child td { border-bottom: 0; font-weight: 700; }
 .mix span:nth-child(1) { background: var(--easy); }
 .mix span:nth-child(2) { background: var(--medium); }
 .mix span:nth-child(3) { background: var(--hard); }
+.mix-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 0 0 10px; }
+.no-margin { margin: 0; }
 
 /* ---------- Toast ---------- */
 .toast {
@@ -365,7 +370,10 @@ table.sched tr:last-child td { border-bottom: 0; font-weight: 700; }
   .topbar-inner { gap: 8px; }
   .brand > span:last-child { display: none; }
   .nav { margin-left: 0; }
-  .nav a { padding: 6px 8px; font-size: 14px; }
+  .nav { gap: 0; }
+  .nav a { padding: 6px 7px; font-size: 14px; }
+  .topbar-actions { gap: 0; }
+  .topbar-actions .icon-btn { width: 32px; height: 32px; }
   .hero { grid-template-columns: 1fr; padding: 20px; }
   .hero .ring { justify-self: center; }
   .hero h1 { font-size: 24px; }
