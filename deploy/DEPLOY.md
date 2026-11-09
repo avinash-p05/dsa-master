@@ -64,13 +64,52 @@ chmod 600 .env
 
 ## 5. Start everything
 
+First check whether something already serves websites on this server:
+
+```bash
+sudo ss -tlnp | grep -E ':(80|443|8080)\s'
+```
+
+### A. Ports 80/443 are already in use (another site on Nginx, Apache…)
+
+Run only the app and the database. The app is published on `127.0.0.1:8080`; set `APP_PORT=8081` (or similar) in `.env` if 8080 is taken.
+
 ```bash
 docker compose up -d --build
 docker compose logs -f app      # wait for "Started DsaMasterApplication"
+curl -s localhost:8080/actuator/health
 ```
 
-Open `https://YOUR_DOMAIN`. Caddy fetches the certificate on the first request.
-Database migrations (Flyway) run automatically at startup.
+Then point your existing web server at it.
+
+**Nginx** (see `deploy/nginx-dsamaster.conf`):
+
+```bash
+sudo cp deploy/nginx-dsamaster.conf /etc/nginx/sites-available/dsamaster
+sudo ln -s /etc/nginx/sites-available/dsamaster /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d dsamaster.duckdns.org
+```
+
+**Caddy already on the host:** add this to its Caddyfile and reload:
+
+```
+dsamaster.duckdns.org {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+**Traefik / nginx-proxy in Docker:** put the `app` service on that proxy's network and add its labels or `VIRTUAL_HOST` env (container port 8080).
+
+### B. Fresh server, nothing on 80/443
+
+```bash
+docker compose --profile caddy up -d --build
+```
+
+The bundled Caddy gets the HTTPS certificate on the first request.
+
+Either way, open `https://YOUR_DOMAIN`. Database migrations (Flyway) run automatically at startup.
 
 ## 6. Updating
 

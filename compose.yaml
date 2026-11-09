@@ -1,10 +1,17 @@
 # Production stack for a single VPS (e.g. Contabo):
-#   caddy  -> HTTPS on 80/443 (automatic Let's Encrypt certificates)
-#   app    -> Spring Boot jar serving the SPA at "/" and the API at "/api"
+#   app    -> Spring Boot jar serving the SPA at "/" and the API at "/api",
+#             published on 127.0.0.1:${APP_PORT:-8080} only
 #   db     -> PostgreSQL 17 (not exposed to the internet)
+#   caddy  -> OPTIONAL HTTPS proxy on 80/443 (automatic Let's Encrypt)
 #
 #   cp .env.example .env   # fill it in
-#   docker compose up -d --build
+#
+#   Server already runs a web server on 80/443 (Nginx, Apache, another Caddy)?
+#     docker compose up -d --build                 # app + db only
+#     then proxy your domain to 127.0.0.1:APP_PORT (see deploy/nginx-dsamaster.conf)
+#
+#   Fresh server with nothing on 80/443?
+#     docker compose --profile caddy up -d --build # app + db + Caddy HTTPS
 services:
   db:
     image: postgres:17.10-alpine
@@ -46,12 +53,14 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
-    # Only reachable through Caddy (and from the server itself for debugging).
+    # Loopback only: reachable from the reverse proxy on this server, not the internet.
+    # Change APP_PORT in .env if 8080 is already in use.
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
 
   caddy:
     image: caddy:2.8-alpine
+    profiles: ["caddy"] # only started with --profile caddy
     restart: unless-stopped
     depends_on:
       - app
