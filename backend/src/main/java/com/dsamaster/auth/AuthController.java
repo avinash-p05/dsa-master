@@ -33,6 +33,7 @@ public class AuthController {
 	@GetMapping("/session")
 	public SessionResponse session(@AuthenticationPrincipal AppPrincipal principal) {
 		List<String> providers = new ArrayList<>(props.oauth().configuredProviders());
+		if (props.auth().passwordLoginEnabled()) providers.add("password");
 		if (props.devLoginEnabled()) providers.add("dev");
 
 		if (principal == null) return new SessionResponse(false, null, providers);

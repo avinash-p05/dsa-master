@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { PHASES, PROBLEMS, TOPICS, TOTAL_PROBLEMS } from "@/data";
 import { useAuth } from "@/hooks/useAuth";
 import { useProgress } from "@/hooks/useProgress";
-import { SignInButtons } from "@/components/layout/AccountMenu";
 import { DAY_MS } from "@/lib/review";
 import { plural } from "@/lib/format";
 import type { Difficulty } from "@/types/roadmap";
@@ -21,7 +20,7 @@ const DIFFICULTY_STATS: { key: Difficulty; label: string }[] = [
 
 /** Nudges guests to sign in. Hidden when no backend/providers are available. */
 function SyncBanner() {
-  const { status, providers } = useAuth();
+  const { status, providers, openAuthDialog } = useAuth();
   const { syncing } = useProgress();
 
   if (syncing) {
@@ -40,7 +39,14 @@ function SyncBanner() {
         <strong>Your progress is only saved in this browser.</strong>
         <span className="muted"> Sign in to keep it across devices. Anything you've already ticked comes with you.</span>
       </div>
-      <SignInButtons />
+      <div className="banner-actions">
+        <button type="button" className="btn btn-sm" onClick={() => openAuthDialog("signin")}>
+          Sign in
+        </button>
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => openAuthDialog("signup")}>
+          Create account
+        </button>
+      </div>
     </div>
   );
 }

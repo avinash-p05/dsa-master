@@ -1,11 +1,26 @@
 # Shared defaults. Profile files override these:
-#   application-dev.yml  -> local development (H2 file DB, dev login)
-#   application-prod.yml -> production (PostgreSQL, secure cookies)
+#   application-dev.yml  -> local development (Docker Postgres + Mailpit, dev login)
+#   application-prod.yml -> production (secure cookies, real SMTP)
 spring:
   application:
     name: dsa-master
+  config:
+    # Optional KEY=value file next to where the app is started (backend/.env when
+    # running with mvnw). Handy for local OAuth/SMTP credentials; never committed.
+    import: optional:file:.env[.properties]
   profiles:
     default: dev
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
   jpa:
     open-in-view: false
     hibernate:
@@ -40,6 +55,14 @@ management:
         enabled: true
 
 app:
+  # Public URL of the site, used in links inside emails.
+  base-url: ${APP_BASE_URL:http://localhost:5173}
+  mail:
+    from: ${MAIL_FROM:DSA Master <no-reply@localhost>}
+  auth:
+    password-login-enabled: ${PASSWORD_LOGIN_ENABLED:true}
+    verification-token-ttl: 24h
+    reset-token-ttl: 1h
   oauth:
     github:
       client-id: ${GITHUB_CLIENT_ID:}

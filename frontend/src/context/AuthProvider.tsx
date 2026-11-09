@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { AuthDialog } from "@/components/auth/AuthDialog";
 import { useToast } from "@/hooks/useToast";
-import { api, oauthLoginUrl, type ApiUser, type AuthProviderId } from "@/lib/api";
-import { AuthContext, type AuthContextValue, type AuthStatus } from "./authContext";
+import { api, oauthLoginUrl, type ApiUser, type AuthProviderId, type OAuthProviderId } from "@/lib/api";
+import { AuthContext, type AuthContextValue, type AuthDialogMode, type AuthStatus } from "./authContext";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<ApiUser | null>(null);
   const [providers, setProviders] = useState<AuthProviderId[]>([]);
+  const [dialogMode, setDialogMode] = useState<AuthDialogMode | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -38,14 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
 
-  const signIn = useCallback(
-    async (provider: AuthProviderId) => {
-      if (provider === "dev") {
-        await api.devLogin();
-        await refresh();
-        return;
-      }
-      window.location.assign(oauthLoginUrl(provider));
+  const signInWithOAuth = useCallback((provider: OAuthProviderId) => {
+    window.location.assign(oauthLoginUrl(provider));
+  }, []);
+
+  const signInAsDev = useCallback(async () => {
+    await api.devLogin();
+    await refresh();
+  }, [refresh]);
+
+  const signInWithPassword = useCallback(
+    async (email: string, password: string) => {
+      await api.login({ email, password });
+      await refresh();
     },
     [refresh],
   );
@@ -58,10 +65,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [refresh]);
 
+  const openAuthDialog = useCallback((mode: AuthDialogMode = "signin") => setDialogMode(mode), []);
+  const closeAuthDialog = useCallback(() => setDialogMode(null), []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, providers, signIn, signOut }),
-    [status, user, providers, signIn, signOut],
+    () => ({
+      status,
+      user,
+      providers,
+      signInWithOAuth,
+      signInAsDev,
+      signInWithPassword,
+      refresh,
+      signOut,
+      openAuthDialog,
+      closeAuthDialog,
+    }),
+    [status, user, providers, signInWithOAuth, signInAsDev, signInWithPassword, refresh, signOut, openAuthDialog, closeAuthDialog],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {dialogMode && <AuthDialog initialMode={dialogMode} onClose={closeAuthDialog} />}
+    </AuthContext.Provider>
+  );
 }

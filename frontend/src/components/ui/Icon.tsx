@@ -12,6 +12,7 @@ const PATHS = {
     </>
   ),
   chevron: <path d="M6 9l6 6 6-6" />,
+  close: <path d="M6 6l12 12M18 6L6 18" />,
   redo: <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" />,
   sun: (
     <>

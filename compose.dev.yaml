@@ -18,5 +18,13 @@ services:
       timeout: 3s
       retries: 10
 
+  # Catches every email the app sends. Inbox UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: dsa-master-mail-dev
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   dsa-master-db-dev:

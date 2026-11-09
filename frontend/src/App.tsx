@@ -6,7 +6,9 @@ import { ToastProvider } from "@/context/ToastProvider";
 import { GuidePage } from "@/pages/GuidePage";
 import { HomePage } from "@/pages/HomePage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { ReviewPage } from "@/pages/ReviewPage";
+import { VerifyEmailPage } from "@/pages/VerifyEmailPage";
 import { TopicPage } from "@/pages/TopicPage";
 
 /**
@@ -26,6 +28,8 @@ export function App() {
                 <Route path="topic/:slug/:problemId" element={<TopicPage />} />
                 <Route path="review" element={<ReviewPage />} />
                 <Route path="guide" element={<GuidePage />} />
+                <Route path="verify-email" element={<VerifyEmailPage />} />
+                <Route path="reset-password" element={<ResetPasswordPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>

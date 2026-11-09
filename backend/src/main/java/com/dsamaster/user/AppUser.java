@@ -38,6 +38,15 @@ public class AppUser {
 	@Column(name = "last_login_at", nullable = false)
 	private Instant lastLoginAt;
 
+	/** BCrypt hash; only set for email/password ("local") accounts. */
+	@Column(name = "password_hash", length = 100)
+	private String passwordHash;
+
+	@Column(name = "email_verified", nullable = false)
+	private boolean emailVerified;
+
+	public static final String LOCAL_PROVIDER = "local";
+
 	protected AppUser() {
 		// for JPA
 	}
@@ -48,6 +57,34 @@ public class AppUser {
 		this.createdAt = now;
 		this.lastLoginAt = now;
 	}
+
+	/** New, unverified email/password account. {@code email} must already be normalised. */
+	public static AppUser local(String email, String displayName, String passwordHash, Instant now) {
+		AppUser user = new AppUser(LOCAL_PROVIDER, email, now);
+		user.email = email;
+		user.displayName = displayName;
+		user.passwordHash = passwordHash;
+		return user;
+	}
+
+	public boolean isLocal() {
+		return LOCAL_PROVIDER.equals(provider);
+	}
+
+	public void changePassword(String newHash) {
+		this.passwordHash = newHash;
+	}
+
+	public void markEmailVerified() {
+		this.emailVerified = true;
+	}
+
+	public void recordLogin(Instant now) {
+		this.lastLoginAt = now;
+	}
+
+	public String getPasswordHash() { return passwordHash; }
+	public boolean isEmailVerified() { return emailVerified; }
 
 	/** Refresh profile details from the identity provider on each login. */
 	public void updateProfile(OAuthProfile profile, Instant now) {

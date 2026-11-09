@@ -1,11 +1,17 @@
-# Local development: PostgreSQL from `docker compose -f compose.dev.yaml up -d`
+# Local development: PostgreSQL + Mailpit from `docker compose -f compose.dev.yaml up -d`
 # (repo root), plus a "Continue as dev user" login so you can test without
-# OAuth credentials.
+# OAuth credentials. Emails are caught by Mailpit: http://localhost:8025
 spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/dsamaster}
     username: ${DB_USERNAME:dsamaster}
     password: ${DB_PASSWORD:dsamaster}
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:false}
 
 app:
   dev-login-enabled: true

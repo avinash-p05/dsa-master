@@ -35,13 +35,26 @@ sudo usermod -aG docker $USER   # log out and back in afterwards
 
 You can deploy with only one provider. The UI shows a button for each provider that has credentials.
 
+## 3b. Email (email/password sign-up)
+
+Email/password accounts need outgoing mail for the verification and password-reset links. The app sends mail itself over **SMTP**, so any provider works. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` and `MAIL_FROM` in `.env`:
+
+| Provider | Host / port | Notes |
+| --- | --- | --- |
+| Gmail | `smtp.gmail.com` / 587 | Turn on 2-Step Verification, then create an **App Password** (Google Account → Security → App passwords). About 500 emails a day. |
+| Brevo | `smtp-relay.brevo.com` / 587 | Free tier: 300 emails a day. Verify your sender address first. |
+| Zoho, Outlook, SES… | see the provider's docs | Any STARTTLS SMTP server on 587 works. |
+
+`MAIL_FROM` must be an address the SMTP account is allowed to send as (for Gmail, your Gmail address).
+If `SMTP_HOST` is empty, emails are written to the app log instead of being sent: fine for testing, not for real users.
+
 ## 4. Get the code and configure it
 
 ```bash
 git clone https://github.com/avinash-p05/dsa-master.git
 cd dsa-master
 cp .env.example .env
-nano .env        # set DOMAIN, DB_PASSWORD (openssl rand -base64 32) and the OAuth IDs/secrets
+nano .env        # set DOMAIN, DB_PASSWORD (openssl rand -base64 32), OAuth IDs/secrets and SMTP
 chmod 600 .env
 ```
 

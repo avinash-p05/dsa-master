@@ -41,7 +41,8 @@ public class SecurityConfig {
 
 		http
 			.authorizeHttpRequests(auth -> auth
-				.requestMatchers("/api/auth/session").permitAll()
+				// Session info, email/password sign-up/in, verification and reset.
+				.requestMatchers("/api/auth/**").permitAll()
 				.requestMatchers("/api/dev/**").permitAll()
 				.requestMatchers("/api/**").authenticated()
 				// Everything else is the SPA, static assets, OAuth endpoints and health.

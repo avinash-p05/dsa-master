@@ -37,4 +37,9 @@ public class AppUserService {
 	public Optional<AppUser> findById(long id) {
 		return users.findById(id);
 	}
+
+	@Transactional(readOnly = true)
+	public Optional<AppUser> findLocalByEmail(String normalisedEmail) {
+		return users.findByProviderAndProviderUserId(AppUser.LOCAL_PROVIDER, normalisedEmail);
+	}
 }
