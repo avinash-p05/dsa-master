@@ -40,12 +40,20 @@ function SyncBanner() {
         <span className="muted"> Sign in to keep it across devices. Anything you've already ticked comes with you.</span>
       </div>
       <div className="banner-actions">
-        <button type="button" className="btn btn-sm" onClick={() => openAuthDialog("signin")}>
-          Sign in
-        </button>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => openAuthDialog("signup")}>
-          Create account
-        </button>
+        {providers.includes("password") ? (
+          <>
+            <button type="button" className="btn btn-sm" onClick={() => openAuthDialog("signin")}>
+              Sign in
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => openAuthDialog("signup")}>
+              Create account
+            </button>
+          </>
+        ) : (
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => openAuthDialog("signin")}>
+            Sign in
+          </button>
+        )}
       </div>
     </div>
   );
