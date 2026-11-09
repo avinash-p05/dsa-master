@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "site",
+      "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "java",
+      "runtimeArgs": ["-jar", "backend/target/dsa-master.jar"],
+      "port": 8080
     }
   ]
 }

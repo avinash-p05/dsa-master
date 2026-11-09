@@ -1,5 +1,8 @@
 node_modules
 dist
+target
 *.local
 .DS_Store
 *.log
+.env
+backend/data

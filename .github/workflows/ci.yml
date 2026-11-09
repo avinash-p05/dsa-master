@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17.10-alpine
+        env:
+          POSTGRES_DB: dsamaster
+          POSTGRES_USER: dsamaster
+          POSTGRES_PASSWORD: dsamaster
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dsamaster -d dsamaster"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm ci && npm run lint
+
+      - name: Build and test (frontend + backend jar)
+        working-directory: backend
+        run: ./mvnw -B package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsa-master-jar
+          path: backend/target/dsa-master.jar
+          retention-days: 7

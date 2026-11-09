@@ -1,0 +1,22 @@
+# Production: PostgreSQL. All secrets come from environment variables
+# (see deploy/dsa-master.env.example).
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/dsamaster}
+    username: ${DB_USERNAME:dsamaster}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
+
+app:
+  dev-login-enabled: false
+
+logging:
+  level:
+    root: INFO

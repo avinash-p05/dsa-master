@@ -1,0 +1,15 @@
+# Local development: PostgreSQL from `docker compose -f compose.dev.yaml up -d`
+# (repo root), plus a "Continue as dev user" login so you can test without
+# OAuth credentials.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/dsamaster}
+    username: ${DB_USERNAME:dsamaster}
+    password: ${DB_PASSWORD:dsamaster}
+
+app:
+  dev-login-enabled: true
+
+logging:
+  level:
+    com.dsamaster: DEBUG

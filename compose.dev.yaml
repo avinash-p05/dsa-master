@@ -1,0 +1,22 @@
+# Local development database.
+#   docker compose -f compose.dev.yaml up -d
+services:
+  postgres:
+    image: postgres:17.10-alpine
+    container_name: dsa-master-db-dev
+    environment:
+      POSTGRES_DB: dsamaster
+      POSTGRES_USER: dsamaster
+      POSTGRES_PASSWORD: dsamaster
+    ports:
+      - "5432:5432"
+    volumes:
+      - dsa-master-db-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dsamaster -d dsamaster"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  dsa-master-db-dev:
