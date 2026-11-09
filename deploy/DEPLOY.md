@@ -5,30 +5,33 @@
 
 ## How the server is organised
 
-One server, many apps, no shared config files between apps:
+One server, many apps. Shared infrastructure lives in its own folders, and every app is a self-contained module:
 
 ```
 Internet :80/:443
     │
     ▼
-~/edge   (edge-caddy)            ← the ONLY thing bound to 80/443; automatic HTTPS
-  Caddyfile:  import sites/*.caddy
-  sites/
-    fincore.caddy      → reverse_proxy fincore-frontend:80
-    dsa-master.caddy   → reverse_proxy dsa-master:8080
-    <next-app>.caddy   → …
-    │   (shared Docker network "edge")
+~/edge       edge-caddy          the ONLY thing on 80/443; automatic HTTPS
+               sites/fincore.caddy     → fincore-frontend:80
+               sites/dsa-master.caddy  → dsa-master:8080
+               sites/<next>.caddy      → …
+    │   Docker network "edge"
     ▼
-~/fin-core     its own compose project, own DB, joins "edge" as fincore-frontend
-~/dsa-master   its own compose project, own DB, joins "edge" as dsa-master
+~/fin-core   FinCore (frontend, backend, its own Redis + Kafka)
+~/dsa-master DSA Master (one container)
+~/<next>     …
+    │   Docker network "platform"
+    ▼
+~/platform   platform-postgres   one Postgres 17; one database + one role per app
 ```
 
-- Apps **publish no host ports**, so they never clash. The edge proxy reaches each one by its alias on the `edge` network.
-- Adding or updating one app never restarts another. A new site goes live with a **graceful reload** of the proxy, with no downtime for existing sites.
+- Apps **publish no host ports**, so they never clash. The proxy and the database are reached by name over private Docker networks.
+- Each app has its **own database and login role**. `PUBLIC` connect rights are revoked, so an app can't open another app's database.
+- Deploying or updating one app never restarts another. A new site goes live with a **graceful proxy reload**, with no downtime for the other sites.
 
 ## First deploy of DSA Master
 
-Prerequisites: the edge proxy is running (see "Edge proxy" below), and `dsamaster.duckdns.org` points at the server.
+Prerequisites: `~/edge` and `~/platform` are running (see "Server infrastructure" below), and `dsamaster.duckdns.org` points at the server.
 
 **1. Create the GitHub OAuth app** at <https://github.com/settings/developers> → *New OAuth App*
 - Homepage URL: `https://dsamaster.duckdns.org`
@@ -40,17 +43,24 @@ Prerequisites: the edge proxy is running (see "Edge proxy" below), and `dsamaste
 git clone -b release/1.0.1-github-login https://github.com/avinash-p05/dsa-master.git ~/dsa-master
 cd ~/dsa-master
 cp .env.example .env && chmod 600 .env
-nano .env        # DOMAIN, DB_PASSWORD (openssl rand -base64 32), GITHUB_CLIENT_ID/SECRET
+nano .env        # DOMAIN, DB_PASSWORD (openssl rand -hex 24), GITHUB_CLIENT_ID/SECRET
 ```
 
-**3. Start the app**
+**3. Create its database on the shared Postgres**
+
+```bash
+set -a; . ./.env; set +a
+APP_DB_PASSWORD="$DB_PASSWORD" ~/platform/create-app-db.sh dsamaster
+```
+
+**4. Start the app**
 
 ```bash
 docker compose up -d --build
 docker compose ps                     # app should become "healthy"
 ```
 
-**4. Register the site with the edge proxy** (first time only)
+**5. Register the site with the edge proxy** (first time only)
 
 ```bash
 cp deploy/edge/dsa-master.caddy ~/edge/sites/
@@ -75,89 +85,66 @@ Set these in `.env`, then run `docker compose up -d`:
 
 ## Operations
 
-| Task | Command |
+| Task | Command (in `~/dsa-master`) |
 | --- | --- |
 | Status | `docker compose ps` |
 | Logs | `docker compose logs -f app` |
 | Health | `docker compose exec app wget -qO- localhost:8080/actuator/health` |
 | Restart | `docker compose restart app` |
-| DB shell | `docker compose exec db psql -U dsamaster dsamaster` |
-| Backup DB | `docker compose exec -T db pg_dump -U dsamaster dsamaster \| gzip > ~/backups/dsa-master-$(date +%F).sql.gz` |
-| Restore DB | `gunzip -c backup.sql.gz \| docker compose exec -T db psql -U dsamaster dsamaster` |
+| DB shell | `docker exec -it platform-postgres psql -U dsamaster dsamaster` |
+| Backup (all DBs) | `~/platform/backup.sh` |
 
 ---
 
-## Edge proxy (server-level, set up once)
+## Server infrastructure (set up once)
 
-It lives in `~/edge` on the server, separate from every app:
-
-```
-~/edge/
-  compose.yaml       # Caddy on 80/443, joins the "edge" network
-  Caddyfile          # global options + "import sites/*.caddy"
-  sites/             # one file per app/domain
-  reload.sh          # validate config, then reload gracefully
-```
-
-**compose.yaml**
-
-```yaml
-services:
-  caddy:
-    image: caddy:2-alpine
-    container_name: edge-caddy
-    restart: unless-stopped
-    ports: ["80:80", "443:443", "443:443/udp"]
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./sites:/etc/caddy/sites:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    networks: [edge]
-networks:
-  edge: { external: true }
-volumes:
-  caddy-data:
-  caddy-config:
-```
-
-**Caddyfile**
-
-```
-import sites/*.caddy
-```
-
-**reload.sh**
-
-```bash
-#!/bin/sh
-set -e
-docker exec edge-caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-docker exec edge-caddy caddy reload   --config /etc/caddy/Caddyfile --adapter caddyfile
-echo "edge proxy reloaded"
-```
-
-Bootstrap:
+### Networks
 
 ```bash
 docker network create edge
-cd ~/edge && docker compose up -d
+docker network create platform
 ```
+
+### `~/edge`: shared reverse proxy
+
+```
+~/edge/
+  compose.yaml   Caddy on 80/443 (container edge-caddy), joins "edge"
+  Caddyfile      import sites/*.caddy
+  sites/         one file per app/domain
+  reload.sh      validate, then reload gracefully
+```
+
+`cd ~/edge && docker compose up -d`
+
+### `~/platform`: shared Postgres
+
+```
+~/platform/
+  compose.yaml        Postgres 17 (container platform-postgres), joins "platform", no host port
+  .env                POSTGRES_PASSWORD (superuser; chmod 600)
+  create-app-db.sh    APP_DB_PASSWORD=… ./create-app-db.sh <app>   (idempotent: role + database)
+  backup.sh           pg_dumpall → ~/platform/backups, keeps 14 days
+```
+
+`cd ~/platform && docker compose up -d`
 
 ## Adding another app to the server
 
-1. Give the app its own compose project with **no `ports:`**, and put its web-facing service on the external `edge` network with a unique alias:
+1. Give the app its own compose project with **no `ports:`**. Put its web service on the external `edge` network with a unique alias, and anything that needs the database on `platform`:
    ```yaml
    services:
      web:
        networks:
-         default: {}
          edge: { aliases: [my-app] }
+         platform: {}
    networks:
      edge: { external: true }
+     platform: { external: true }
    ```
-2. Point the domain's DNS at the server.
-3. Add `~/edge/sites/my-app.caddy`:
+   Its database URL is `postgres://my_app:<password>@platform-postgres:5432/my_app`.
+2. Create its database: `APP_DB_PASSWORD=… ~/platform/create-app-db.sh my_app`.
+3. Point the domain's DNS at the server, then add `~/edge/sites/my-app.caddy`:
    ```
    my-app.example.com {
        reverse_proxy my-app:3000
