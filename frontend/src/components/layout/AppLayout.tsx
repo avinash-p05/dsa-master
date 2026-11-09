@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Header } from "./Header";
+import { MainNav } from "./MainNav";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -11,6 +13,7 @@ function ScrollToTop() {
 }
 
 export function AppLayout() {
+  const { status } = useAuth();
   return (
     <>
       <ScrollToTop />
@@ -19,8 +22,14 @@ export function AppLayout() {
         <Outlet />
       </main>
       <footer className="footer container">
-        <p>Your progress is saved in this browser only. Export it to back it up or move it to another device.</p>
+        <p>
+          {status === "authenticated"
+            ? "Your progress is saved to your account and syncs across devices."
+            : "Your progress is saved in this browser. Sign in to keep it across devices."}
+        </p>
       </footer>
+      {/* Phones only: fixed bottom navigation (outside the header so it can be position: fixed). */}
+      <MainNav variant="tabbar" />
     </>
   );
 }

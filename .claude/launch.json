@@ -8,6 +8,12 @@
       "port": 5173
     },
     {
+      "name": "frontend-8090",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-NoProfile", "-Command", "$env:BACKEND_URL='http://localhost:8090'; Set-Location frontend; npx vite --port 5175 --strictPort"],
+      "port": 5175
+    },
+    {
       "name": "app",
       "runtimeExecutable": "java",
       "runtimeArgs": ["-jar", "backend/target/dsa-master.jar"],

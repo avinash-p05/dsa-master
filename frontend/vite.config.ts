@@ -2,7 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
-const BACKEND = "http://localhost:8080";
+// Override when 8080 is taken by another local project, e.g. BACKEND_URL=http://localhost:8090
+const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8080";
 
 // In development, Vite serves the SPA on :5173 and proxies backend paths to
 // Spring Boot on :8080. The Host header is kept (no changeOrigin), so Spring
