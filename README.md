@@ -32,7 +32,7 @@ backend/               Spring Boot app
     db/migration/        Flyway SQL migrations
     application*.yml     Shared / dev / prod config
 deploy/                edge/dsa-master.caddy (site file for the edge proxy) and DEPLOY.md
-compose.yaml           Production stack (app + Postgres, joins the server's "edge" network)
+compose.yaml           Production stack (one container on its own network "app-dsa-master")
 compose.dev.yaml       Local Postgres for development
 Dockerfile             Multi-stage build → small JRE image
 ```

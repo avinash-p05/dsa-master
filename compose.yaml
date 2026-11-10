@@ -1,14 +1,17 @@
 # DSA Master: a self-contained app module for a server laid out as
 #
-#   ~/edge      shared Caddy reverse proxy on 80/443   (Docker network "edge")
-#   ~/platform  shared PostgreSQL ("platform-postgres") (Docker network "platform")
-#   ~/<app>     one compose project per app, joining those networks
+#   ~/edge      shared Caddy reverse proxy / API gateway on 80/443
+#   ~/platform  shared PostgreSQL ("platform-postgres"), Redis, Kafka
+#   ~/<app>     one compose project per app
 #
-# This stack runs a single container. It publishes no host ports:
+# This stack runs a single container. It publishes no host ports and sits on its own
+# private network "app-dsa-master", shared only with the edge proxy and Postgres
+# (so other apps on the server can't reach it):
 #   - the edge proxy reaches it as        dsa-master:8080
 #   - it reaches its own database at       platform-postgres:5432/dsamaster
 #
 # First deploy (see deploy/DEPLOY.md):
+#   docker network create app-dsa-master                   # once; listed in ~/edge and ~/platform compose
 #   cp .env.example .env                                   # fill it in
 #   APP_DB_PASSWORD=<DB_PASSWORD> ~/platform/create-app-db.sh dsamaster
 #   docker compose up -d --build
@@ -42,14 +45,11 @@ services:
       MAIL_FROM: ${MAIL_FROM:-}
     mem_limit: 768m
     networks:
-      edge:
+      app-dsa-master:
         # The name the edge proxy uses: reverse_proxy dsa-master:8080
         aliases: [dsa-master]
-      platform: {}
 
 networks:
-  # Both are created once per server (docker network create edge / platform).
-  edge:
-    external: true
-  platform:
+  # Created once per server; edge-caddy and platform-postgres join it too.
+  app-dsa-master:
     external: true

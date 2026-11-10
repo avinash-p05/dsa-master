@@ -16,15 +16,19 @@ Internet :80/:443
                sites/fincore.caddy     → fincore-app:8080
                sites/dsa-master.caddy  → dsa-master:8080
                sites/<next>.caddy      → …
-    │   Docker network "edge"
+    │   one private network per app: app-fincore, app-dsa-master, app-<next>
     ▼
-~/fin-core   FinCore (one container)
-~/dsa-master DSA Master (one container)
+~/fin-core   FinCore (one container)        on app-fincore
+~/dsa-master DSA Master (one container)     on app-dsa-master
 ~/<next>     …
-    │   Docker network "platform"
+    │   (same per-app networks)
     ▼
-~/platform   platform-postgres, platform-redis, platform-kafka (shared; one DB + role per app)
+~/platform   platform-postgres  joins app-fincore + app-dsa-master
+             platform-redis     joins app-fincore
+             platform-kafka     joins app-fincore
 ```
+
+Each app network holds only that app, Caddy and the shared services the app uses. Apps can't reach each other, CrowdSec, or services they don't use.
 
 Every site imports the edge's `protect` snippet, which applies CrowdSec bans, blocks scanner probes (`/.env`, `/wp-admin`, `*.php`), limits each IP (30/min on sign-in paths, 600/min overall) and caps request bodies at 10 MB. Details are in the `server-edge` repo README.
 
@@ -104,8 +108,9 @@ Set these in `.env`, then run `docker compose up -d`:
 ### Networks
 
 ```bash
-docker network create edge
-docker network create platform
+docker network create platform          # links the platform services
+docker network create app-dsa-master    # one per app
+docker network create app-fincore
 ```
 
 ### `~/edge`: shared reverse proxy and API gateway (repo `server-edge`)
@@ -125,7 +130,7 @@ docker network create platform
 
 ```
 ~/platform/
-  compose.yaml        platform-postgres, platform-redis, platform-kafka; join "platform", no host ports
+  compose.yaml        platform-postgres, platform-redis, platform-kafka; each joins the app networks that use it, no host ports
   .env                POSTGRES_PASSWORD (superuser; chmod 600)
   create-app-db.sh    APP_DB_PASSWORD=… ./create-app-db.sh <app>   (idempotent: role + database)
   backup.sh           pg_dumpall → ~/platform/backups (14 days), then offsite.sh
@@ -136,20 +141,25 @@ docker network create platform
 
 ## Adding another app to the server
 
-1. Give the app its own compose project with **no `ports:`**. Put its web service on the external `edge` network with a unique alias, and anything that needs the database on `platform`:
+1. Create its private network and attach Caddy and the shared services it needs. `docker network connect` applies this immediately with no restarts:
+   ```bash
+   docker network create app-my-app
+   docker network connect app-my-app edge-caddy
+   docker network connect app-my-app platform-postgres     # only what the app uses
+   ```
+   Then list `app-my-app` in `~/edge/compose.yaml` (under `caddy.networks` and `networks:`) and in `~/platform/compose.yaml` for each service it uses, and commit both repos, so a later `docker compose up` keeps the attachments.
+2. Give the app its own compose project with **no `ports:`**, on that network only:
    ```yaml
    services:
      web:
        networks:
-         edge: { aliases: [my-app] }
-         platform: {}
+         app-my-app: { aliases: [my-app] }
    networks:
-     edge: { external: true }
-     platform: { external: true }
+     app-my-app: { external: true }
    ```
    Its database URL is `postgres://my_app:<password>@platform-postgres:5432/my_app`.
-2. Create its database: `APP_DB_PASSWORD=… ~/platform/create-app-db.sh my_app`.
-3. Point the domain's DNS at the server, then add `~/edge/sites/my-app.caddy`:
+3. Create its database: `APP_DB_PASSWORD=… ~/platform/create-app-db.sh my_app`.
+4. Point the domain's DNS at the server, then add `~/edge/sites/my-app.caddy`:
    ```
    my-app.example.com {
        import access_log
@@ -157,6 +167,6 @@ docker network create platform
        reverse_proxy my-app:3000
    }
    ```
-4. Run `docker compose up -d` in the app folder, then `~/edge/reload.sh`.
+5. Run `docker compose up -d` in the app folder, then `~/edge/reload.sh`.
 
 Nothing else on the server is touched.
