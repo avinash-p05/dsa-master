@@ -11,19 +11,22 @@ One server, many apps. Shared infrastructure lives in its own folders, and every
 Internet :80/:443
     │
     ▼
-~/edge       edge-caddy          the ONLY thing on 80/443; automatic HTTPS
-               sites/fincore.caddy     → fincore-frontend:80
+~/edge       edge-caddy          the ONLY thing on 80/443: HTTPS + API gateway
+             edge-crowdsec       reads the access log, bans abusive IPs
+               sites/fincore.caddy     → fincore-app:8080
                sites/dsa-master.caddy  → dsa-master:8080
                sites/<next>.caddy      → …
     │   Docker network "edge"
     ▼
-~/fin-core   FinCore (frontend, backend, its own Redis + Kafka)
+~/fin-core   FinCore (one container)
 ~/dsa-master DSA Master (one container)
 ~/<next>     …
     │   Docker network "platform"
     ▼
-~/platform   platform-postgres   one Postgres 17; one database + one role per app
+~/platform   platform-postgres, platform-redis, platform-kafka (shared; one DB + role per app)
 ```
+
+Every site imports the edge's `protect` snippet, which applies CrowdSec bans, blocks scanner probes (`/.env`, `/wp-admin`, `*.php`), limits each IP (30/min on sign-in paths, 600/min overall) and caps request bodies at 10 MB. Details are in the `server-edge` repo README.
 
 - Apps **publish no host ports**, so they never clash. The proxy and the database are reached by name over private Docker networks.
 - Each app has its **own database and login role**. `PUBLIC` connect rights are revoked, so an app can't open another app's database.
@@ -92,7 +95,7 @@ Set these in `.env`, then run `docker compose up -d`:
 | Health | `docker compose exec app wget -qO- localhost:8080/actuator/health` |
 | Restart | `docker compose restart app` |
 | DB shell | `docker exec -it platform-postgres psql -U dsamaster dsamaster` |
-| Backup (all DBs) | `~/platform/backup.sh` |
+| Backup (all DBs) | `~/platform/backup.sh` (runs nightly at 03:30; encrypted copy to Backblaze B2) |
 
 ---
 
@@ -105,26 +108,28 @@ docker network create edge
 docker network create platform
 ```
 
-### `~/edge`: shared reverse proxy
+### `~/edge`: shared reverse proxy and API gateway (repo `server-edge`)
 
 ```
 ~/edge/
-  compose.yaml   Caddy on 80/443 (container edge-caddy), joins "edge"
-  Caddyfile      import sites/*.caddy
+  compose.yaml   Caddy on 80/443 (edge-caddy, custom build with rate_limit + CrowdSec plugins) and edge-crowdsec
+  Caddyfile      global gateway settings, the access_log and protect snippets, import sites/*.caddy
   sites/         one file per app/domain
+  .env           CROWDSEC_BOUNCER_KEY (chmod 600)
   reload.sh      validate, then reload gracefully
 ```
 
-`cd ~/edge && docker compose up -d`
+`cd ~/edge && docker compose up -d --build`
 
-### `~/platform`: shared Postgres
+### `~/platform`: shared Postgres, Redis, Kafka (repo `server-platform`)
 
 ```
 ~/platform/
-  compose.yaml        Postgres 17 (container platform-postgres), joins "platform", no host port
+  compose.yaml        platform-postgres, platform-redis, platform-kafka; join "platform", no host ports
   .env                POSTGRES_PASSWORD (superuser; chmod 600)
   create-app-db.sh    APP_DB_PASSWORD=… ./create-app-db.sh <app>   (idempotent: role + database)
-  backup.sh           pg_dumpall → ~/platform/backups, keeps 14 days
+  backup.sh           pg_dumpall → ~/platform/backups (14 days), then offsite.sh
+  offsite.sh          restic → Backblaze B2, encrypted; settings in .backup.env (chmod 600)
 ```
 
 `cd ~/platform && docker compose up -d`
@@ -147,6 +152,8 @@ docker network create platform
 3. Point the domain's DNS at the server, then add `~/edge/sites/my-app.caddy`:
    ```
    my-app.example.com {
+       import access_log
+       import protect myapp      # unique name per site
        reverse_proxy my-app:3000
    }
    ```

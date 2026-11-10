@@ -1,6 +1,8 @@
 # DSA Master site for the server's shared edge proxy (Caddy).
 # Install once:  cp deploy/edge/dsa-master.caddy ~/edge/sites/ && ~/edge/reload.sh
 dsamaster.duckdns.org {
+	import access_log
+	import protect dsa
 	encode zstd gzip
 
 	header {
