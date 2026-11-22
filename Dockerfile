@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---------- Build: React app + Spring Boot jar ----------
-FROM eclipse-temurin:21-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /workspace
 
 # Cache Maven dependencies separately from source changes.
@@ -15,7 +15,7 @@ COPY backend/src backend/src
 RUN cd backend && ./mvnw -B -DskipTests package
 
 # ---------- Runtime: small JRE image, non-root ----------
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /workspace/backend/target/dsa-master.jar app.jar

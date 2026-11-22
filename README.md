@@ -10,7 +10,7 @@ A concept-first roadmap of 180 curated LeetCode problems for mid-level interview
 | Layer | Tech |
 | --- | --- |
 | Frontend | React 18, TypeScript, Vite, React Router |
-| Backend | Spring Boot 4 (Java 17+), Spring Security (OAuth2 + email/password), Spring Mail (SMTP), Spring Data JPA, Flyway, Spring Session JDBC |
+| Backend | Spring Boot 4 (Java 25), Spring Security (OAuth2 + email/password), Spring Mail (SMTP), Spring Data JPA, Flyway, Spring Session JDBC |
 | Database | PostgreSQL 17 |
 | Deploy | One jar (SPA at `/`, API at `/api`) in Docker, behind a shared edge Caddy proxy for HTTPS |
 
@@ -39,7 +39,7 @@ Dockerfile             Multi-stage build → small JRE image
 
 ## Local development
 
-Prerequisites: Java 17+, Node 22, Docker.
+Prerequisites: Java 25, Node 22, Docker.
 
 ```bash
 docker compose -f compose.dev.yaml up -d          # Postgres on :5432, Mailpit inbox on :8025
