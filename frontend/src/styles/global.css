@@ -493,3 +493,6 @@ table.sched tr:last-child td { border-bottom: 0; font-weight: 700; }
   .banner-actions .btn { flex: 1; justify-content: center; }
   .signin-btn { margin-left: 2px; padding: 5px 9px; }
 }
+
+/* Build-time pre-rendered text (frontend/seo/prerender.ts): shown only until React mounts. */
+.prerender { max-width: 760px; margin: 0 auto; padding: 32px 16px; line-height: 1.6; }

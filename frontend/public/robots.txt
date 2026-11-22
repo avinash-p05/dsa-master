@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /oauth2/
+Disallow: /login/
+Disallow: /review
+Disallow: /verify-email
+Disallow: /reset-password
+Disallow: /_pages/
+
+Sitemap: https://dsamaster.duckdns.org/sitemap.xml
