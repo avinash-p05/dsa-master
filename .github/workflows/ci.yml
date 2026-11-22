@@ -1,16 +1,36 @@
+# CI/CD for DSA Master.
+#   every push / PR:  lint the frontend, build and test (frontend + backend jar) against PostgreSQL
+#   push to main:     build the app image (Dockerfile) and push it to ghcr.io/avinash-p05/dsa-master
+#                     with two tags: latest and the commit SHA
+#
+# The server never builds. It only pulls the image:
+#   cd ~/dsa-master && ./deploy.sh        # docker compose pull && docker compose up -d
+# Roll back: set IMAGE_TAG=<older sha> in ~/dsa-master/.env and run ./deploy.sh again.
 name: CI
 
 on:
   push:
     branches: [main, "release/**"]
+    paths-ignore:
+      - "**.md"
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# A newer push to the same branch cancels the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/avinash-p05/dsa-master
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -26,15 +46,15 @@ jobs:
           --health-interval 5s --health-timeout 3s --health-retries 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 21
+          java-version: "25"
           cache: maven
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -46,10 +66,43 @@ jobs:
 
       - name: Build and test (frontend + backend jar)
         working-directory: backend
-        run: ./mvnw -B package
+        run: ./mvnw -B -ntp package
 
-      - uses: actions/upload-artifact@v4
+  image:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
         with:
-          name: dsa-master-jar
-          path: backend/target/dsa-master.jar
-          retention-days: 7
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          # Reuse npm / Maven layers between runs.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "Pushed \`${IMAGE}:latest\` and \`${IMAGE}:${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deploy on the server: \`cd ~/dsa-master && ./deploy.sh\`" >> "$GITHUB_STEP_SUMMARY"

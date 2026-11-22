@@ -44,12 +44,14 @@ Prerequisites: `~/edge` and `~/platform` are running (see "Server infrastructure
 - Homepage URL: `https://dsamaster.duckdns.org`
 - Authorization callback URL: `https://dsamaster.duckdns.org/login/oauth2/code/github`
 
-**2. Clone and configure**
+**2. Fetch the deploy files and configure** (no git clone: the server only runs the image that CI builds)
 
 ```bash
-git clone -b release/1.0.1-github-login https://github.com/avinash-p05/dsa-master.git ~/dsa-master
-cd ~/dsa-master
-cp .env.example .env && chmod 600 .env
+mkdir -p ~/dsa-master && cd ~/dsa-master
+raw=https://raw.githubusercontent.com/avinash-p05/dsa-master/main
+curl -fsSLO $raw/compose.yaml
+curl -fsSL $raw/deploy/deploy.sh -o deploy.sh && chmod +x deploy.sh
+curl -fsSL $raw/.env.example -o .env && chmod 600 .env
 nano .env        # DOMAIN, DB_PASSWORD (openssl rand -hex 24), GITHUB_CLIENT_ID/SECRET
 ```
 
@@ -63,14 +65,13 @@ APP_DB_PASSWORD="$DB_PASSWORD" ~/platform/create-app-db.sh dsamaster
 **4. Start the app**
 
 ```bash
-docker compose up -d --build
-docker compose ps                     # app should become "healthy"
+./deploy.sh                           # pulls ghcr.io/avinash-p05/dsa-master:latest, waits for "healthy"
 ```
 
 **5. Register the site with the edge proxy** (first time only)
 
 ```bash
-cp deploy/edge/dsa-master.caddy ~/edge/sites/
+cp dsa-master.caddy ~/edge/sites/        # deploy.sh downloaded it
 ~/edge/reload.sh
 ```
 
@@ -78,15 +79,20 @@ Caddy fetches the HTTPS certificate on the first request to `https://dsamaster.d
 
 ## Updating
 
+GitHub Actions ([.github/workflows/ci.yml](../.github/workflows/ci.yml)) lints and tests every push. A push to
+`main` also builds the image and publishes it as `ghcr.io/avinash-p05/dsa-master:latest` and `:<commit-sha>`.
+Once that run is green:
+
 ```bash
-cd ~/dsa-master && git pull && docker compose up -d --build
+cd ~/dsa-master && ./deploy.sh
 ```
 
-Only this app's container is recreated. Flyway applies any new database migrations at startup.
+`deploy.sh` also refreshes `compose.yaml`, `dsa-master.caddy` and itself from `main`. Only this app's
+container is recreated. **Roll back:** set `IMAGE_TAG=<older commit sha>` in `.env` and run `./deploy.sh`. Flyway applies any new database migrations at startup.
 
 ## Turning on more sign-in methods later
 
-Set these in `.env`, then run `docker compose up -d`:
+Set these in `.env`, then run `./deploy.sh` (or `docker compose up -d`):
 - **Google:** `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (redirect URI `https://<DOMAIN>/login/oauth2/code/google`).
 - **Email/password:** `PASSWORD_LOGIN_ENABLED=true` plus SMTP. For Gmail: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, your Gmail address as `SMTP_USERNAME`, a 16-character **App Password** as `SMTP_PASSWORD`, and `MAIL_FROM` set to the same address.
 

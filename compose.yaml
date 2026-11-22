@@ -10,20 +10,20 @@
 #   - the edge proxy reaches it as        dsa-master:8080
 #   - it reaches its own database at       platform-postgres:5432/dsamaster
 #
-# First deploy (see deploy/DEPLOY.md):
+# Server (no git clone; ~/dsa-master holds only compose.yaml, .env and deploy.sh, see deploy/DEPLOY.md):
 #   docker network create app-dsa-master                   # once; listed in ~/edge and ~/platform compose
-#   cp .env.example .env                                   # fill it in
 #   APP_DB_PASSWORD=<DB_PASSWORD> ~/platform/create-app-db.sh dsamaster
-#   docker compose up -d --build
-#   cp deploy/edge/dsa-master.caddy ~/edge/sites/ && ~/edge/reload.sh
-# Update:
-#   git pull && docker compose up -d --build
+#   ./deploy.sh                                            # pull the latest image and restart
+#   cp dsa-master.caddy ~/edge/sites/ && ~/edge/reload.sh  # once
 name: dsa-master
 
 services:
   app:
+    # Built and pushed by GitHub Actions (.github/workflows/ci.yml) on every push to main.
+    # Roll back: IMAGE_TAG=<commit sha> in .env, then ./deploy.sh
+    image: ghcr.io/avinash-p05/dsa-master:${IMAGE_TAG:-latest}
+    # Only for building locally: docker compose build
     build: .
-    image: dsa-master:latest
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
